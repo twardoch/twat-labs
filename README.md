@@ -1,6 +1,6 @@
-# 
+# twat-labs
 
-
+(work in progress)
 
 ## Features
 
@@ -20,7 +20,6 @@ pip install twat-labs
 
 ```python
 import twat_labs
-plugin = twat_labs.plugin
 ```
 
 ## Development
