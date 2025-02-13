@@ -22,7 +22,7 @@ import subprocess
 import sys
 from functools import lru_cache, wraps
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 ###############################
 ## PATH PROVIDERS & ENVIRONMENT FUNCTIONS
@@ -35,10 +35,10 @@ Functions related to system path management including:
 """
 
 # Type for path provider functions
-PathProvider = Callable[[], List[str]]
+PathProvider = Callable[[], list[str]]
 
 # Registry for custom path providers
-_path_providers: List[PathProvider] = []
+_path_providers: list[PathProvider] = []
 
 # Configure basic logging
 logging.basicConfig(
@@ -103,89 +103,93 @@ def register_path_provider(provider: PathProvider) -> None:
 ####################################
 ## XDG PATH MANAGEMENT
 ####################################
-def get_xdg_paths() -> List[str]:
-    """Get XDG specification paths for common tool installations."""
-    paths = []
+def get_xdg_paths() -> list[str]:
+    """
+    Get XDG specification paths for common tool installations.
+
+    Returns:
+        list[str]: List of XDG paths where executables may be found
+    """
+    paths: list[Path] = []
 
     # XDG_BIN_HOME
-    xdg_bin = os.environ.get("XDG_BIN_HOME")
-    if xdg_bin:
-        paths.append(xdg_bin)
+    if xdg_bin := os.environ.get("XDG_BIN_HOME"):
+        paths.append(Path(xdg_bin))
 
     # XDG_DATA_HOME/../bin
-    xdg_data = os.environ.get("XDG_DATA_HOME")
-    if xdg_data:
+    if xdg_data := os.environ.get("XDG_DATA_HOME"):
         data_parent_bin = Path(xdg_data).parent / "bin"
-        paths.append(str(data_parent_bin))
+        paths.append(data_parent_bin)
 
     # Default ~/.local/bin if XDG vars not set
     local_bin = Path.home() / ".local" / "bin"
-    if local_bin.exists() and str(local_bin) not in paths:
-        paths.append(str(local_bin))
+    if local_bin.exists() and local_bin not in paths:
+        paths.append(local_bin)
 
-    return paths
+    # Convert Path objects to strings for compatibility
+    return [str(p) for p in paths]
 
 
 ####################################
 ## SYSTEM-SPECIFIC PATH DISCOVERY
 ####################################
-def get_system_specific_paths() -> List[str]:
-    """Get OS-specific executable paths."""
+def get_system_specific_paths() -> list[str]:
+    """
+    Get OS-specific executable paths.
+
+    Returns:
+        list[str]: List of system-specific paths where executables may be found
+    """
     system = platform.system()
-    paths = []
+    paths: list[Path] = []
 
     if system == "Darwin":  # macOS
         paths.extend(
             [
-                "/usr/local/bin",  # Homebrew (Intel)
-                "/usr/local/sbin",
-                "/opt/homebrew/bin",  # Homebrew (Apple Silicon)
-                "/opt/homebrew/sbin",
-                "/usr/bin",
-                "/usr/sbin",
-                "/bin",
-                "/sbin",
-                "/Library/Apple/usr/bin",
-                "/Applications/Xcode.app/Contents/Developer/usr/bin",
+                Path("/usr/local/bin"),  # Homebrew (Intel)
+                Path("/usr/local/sbin"),
+                Path("/opt/homebrew/bin"),  # Homebrew (Apple Silicon)
+                Path("/opt/homebrew/sbin"),
+                Path("/usr/bin"),
+                Path("/usr/sbin"),
+                Path("/bin"),
+                Path("/sbin"),
+                Path("/Library/Apple/usr/bin"),
+                Path("/Applications/Xcode.app/Contents/Developer/usr/bin"),
             ]
         )
     elif system == "Windows":
-        win_dir = os.environ.get("SystemRoot", r"C:\Windows")
+        win_dir = Path(os.environ.get("SystemRoot", r"C:\Windows"))
         paths.extend(
             [
-                str(
-                    Path(os.path.expanduser("~"))
-                    / "AppData"
-                    / "Local"
-                    / "Microsoft"
-                    / "WindowsApps"
-                ),
-                os.path.join(win_dir, "System32"),
+                Path.home() / "AppData" / "Local" / "Microsoft" / "WindowsApps",
+                win_dir / "System32",
                 win_dir,
-                os.path.join(win_dir, "System32", "Wbem"),
-                os.path.join(win_dir, "System32", "WindowsPowerShell", "v1.0"),
-                r"C:\Program Files\PowerShell\7",
-                r"C:\ProgramData\chocolatey\bin",
+                win_dir / "System32" / "Wbem",
+                win_dir / "System32" / "WindowsPowerShell" / "v1.0",
+                Path(r"C:\Program Files\PowerShell\7"),
+                Path(r"C:\ProgramData\chocolatey\bin"),
             ]
         )
     else:  # Linux and others
         paths.extend(
             [
-                "/usr/local/bin",
-                "/usr/local/sbin",
-                "/usr/bin",
-                "/usr/sbin",
-                "/bin",
-                "/sbin",
+                Path("/usr/local/bin"),
+                Path("/usr/local/sbin"),
+                Path("/usr/bin"),
+                Path("/usr/sbin"),
+                Path("/bin"),
+                Path("/sbin"),
             ]
         )
 
         # Add snap paths if they exist
-        snap_bin = "/snap/bin"
-        if os.path.exists(snap_bin):
+        snap_bin = Path("/snap/bin")
+        if snap_bin.exists():
             paths.append(snap_bin)
 
-    return paths
+    # Convert Path objects to strings for compatibility
+    return [str(p) for p in paths]
 
 
 ###############################
@@ -202,17 +206,27 @@ Core utilities for system interaction including:
 ####################################
 ## EXECUTABLE SECURITY
 ####################################
-def verify_executable(path: str) -> Tuple[bool, str]:
-    """Validate executable safety and permissions."""
-    if not os.path.exists(path):
+def verify_executable(path: str | Path) -> tuple[bool, str]:
+    """
+    Validate executable safety and permissions.
+
+    Args:
+        path: Path to the executable as string or Path object
+
+    Returns:
+        tuple[bool, str]: (is_safe, reason) where is_safe is True if executable is safe to use
+    """
+    path_obj = Path(path)
+
+    if not path_obj.exists():
         return False, "File does not exist"
 
-    if not os.path.isfile(path):
+    if not path_obj.is_file():
         return False, "Not a regular file"
 
     # Check if path is writable by others on Unix-like systems
     if platform.system() != "Windows":
-        mode = os.stat(path).st_mode
+        mode = path_obj.stat().st_mode
         if mode & 0o002:  # World-writable
             return False, "File is world-writable"
 
@@ -300,7 +314,8 @@ def download_url_qt(
                 reply.deleteLater()
                 continue
             reply.deleteLater()
-            raise RuntimeError(f"Invalid redirect (HTTP {sc})")
+            msg = f"Invalid redirect (HTTP {sc})"
+            raise RuntimeError(msg)
 
         if reply.error() == QtNetwork.QNetworkReply.NoError:
             data = bin_or_str(reply.readAll().data(), mode)
@@ -309,9 +324,11 @@ def download_url_qt(
 
         err = f"{reply.errorString()} (HTTP {sc})"
         reply.deleteLater()
-        raise RuntimeError(f"Download failed: {err}")
+        msg = f"Download failed: {err}"
+        raise RuntimeError(msg)
 
-    raise RuntimeError(f"Max redirects exceeded ({max_redir})")
+    msg = f"Max redirects exceeded ({max_redir})"
+    raise RuntimeError(msg)
 
 
 @lru_cache(maxsize=20)
@@ -345,11 +362,14 @@ def download_url_py(
             data = response.read()
             return bin_or_str(data, mode)
     except urllib.error.HTTPError as e:
-        raise RuntimeError(f"Download failed: HTTP {e.code} - {e.reason}")
+        msg = f"Download failed: HTTP {e.code} - {e.reason}"
+        raise RuntimeError(msg)
     except urllib.error.URLError as e:
-        raise RuntimeError(f"Download failed: {str(e.reason)}")
+        msg = f"Download failed: {e.reason!s}"
+        raise RuntimeError(msg)
     except Exception as e:
-        raise RuntimeError(f"Download failed: {str(e)}")
+        msg = f"Download failed: {e!s}"
+        raise RuntimeError(msg)
 
 
 @lru_cache(maxsize=20)
@@ -362,7 +382,7 @@ def download_url(
         pass
 
         return download_url_qt(url, mode, max_redir)
-    except Exception as e:
+    except Exception:
         return download_url_py(url, mode, max_redir)
 
 
@@ -393,7 +413,7 @@ def which_uv() -> Path | None:
         if uv_cli:
             return uv_cli
     except Exception as e:
-        logging.warning(f"Error finding uv: {str(e)}")
+        logging.warning(f"Error finding uv: {e!s}")
         return None
 
     # If uv is not found, try to install it using pip
@@ -410,9 +430,9 @@ def which_uv() -> Path | None:
             if uv_cli:
                 return uv_cli
         except subprocess.CalledProcessError as e:
-            logging.warning(f"Error installing uv: {str(e)}")
+            logging.warning(f"Error installing uv: {e!s}")
         except Exception as e:
-            logging.warning(f"Unexpected error installing uv: {str(e)}")
+            logging.warning(f"Unexpected error installing uv: {e!s}")
 
     return None
 
@@ -439,7 +459,7 @@ def which_pip() -> Path | None:
             pip_cli = Path(pip_cli)
             if pip_cli.exists():
                 return pip_cli
-    except Exception as e:
+    except Exception:
         pass
     try:
         import ensurepip
@@ -452,7 +472,7 @@ def which_pip() -> Path | None:
             if pip_cli.exists():
                 return pip_cli
     except Exception as e:
-        logging.warning(f"Error ensuring pip: {str(e)}")
+        logging.warning(f"Error ensuring pip: {e!s}")
     return None
 
 
@@ -463,7 +483,7 @@ def which_pip() -> Path | None:
 def which(
     cmd: str,
     mode: int = os.F_OK | os.X_OK,
-    path: Optional[str] = None,
+    path: str | None = None,
     verify: bool = True,
 ) -> Path | None:
     """
@@ -481,19 +501,19 @@ def which(
     if path is None:
         path = build_extended_path()
 
-    result = shutil.which(cmd, mode=mode, path=path)
-
-    if result and verify:
-        is_safe, reason = verify_executable(result)
-        if not is_safe:
-            if os.environ.get("CLIFIND_DEBUG"):
-                print(f"Warning: Found {cmd} at {result} but {reason}", file=sys.stderr)
-            return None
-
-    if result:
+    if result := shutil.which(cmd, mode=mode, path=path):
         result_path = Path(result)
+
+        if verify:
+            is_safe, reason = verify_executable(result_path)
+            if not is_safe:
+                if os.environ.get("CLIFIND_DEBUG"):
+                    pass
+                return None
+
         if result_path.exists():
             return result_path
+
     return None
 
 
@@ -511,35 +531,32 @@ def build_extended_path() -> str:
         str: os.pathsep-separated path string
     """
     # Start with current PATH
-    current_path = os.environ.get("PATH", "").split(os.pathsep)
+    current_path = [Path(p) for p in os.environ.get("PATH", "").split(os.pathsep) if p]
 
     # Collect all potential paths
-    all_paths = []
+    all_paths: list[Path] = []
     all_paths.extend(current_path)
-    all_paths.extend(get_xdg_paths())
-    all_paths.extend(get_system_specific_paths())
-    all_paths.extend(os.defpath.split(os.pathsep))
+    all_paths.extend(Path(p) for p in get_xdg_paths())
+    all_paths.extend(Path(p) for p in get_system_specific_paths())
+    all_paths.extend(Path(p) for p in os.defpath.split(os.pathsep) if p)
 
     # Add paths from custom providers
     for provider in _path_providers:
         try:
-            all_paths.extend(provider())
-        except Exception as e:
+            all_paths.extend(Path(p) for p in provider())
+        except Exception:
             if os.environ.get("CLIFIND_DEBUG"):
-                print(
-                    f"Warning: Path provider {provider.__name__} failed: {e}",
-                    file=sys.stderr,
-                )
+                pass
 
-    # Remove empty strings and duplicates while preserving order
+    # Remove duplicates while preserving order
     seen = set()
     unique_paths = []
     for path in all_paths:
-        if path and path not in seen and os.path.isdir(path):
-            seen.add(path)
+        if path and str(path) not in seen and path.is_dir():
+            seen.add(str(path))
             unique_paths.append(path)
 
-    return os.pathsep.join(unique_paths)
+    return os.pathsep.join(str(p) for p in unique_paths)
 
 
 def clear_path_cache() -> None:
@@ -557,33 +574,82 @@ Application entry points and dependency management decorators:
 """
 
 
-def needs(mods: List[str], needs_target: bool = True) -> Callable:
-    """Decorator to auto-install missing dependencies using uv."""
+def _install_with_uv(missing: list[str], target: bool) -> None:
+    """
+    Install missing packages using UV package manager.
+
+    Args:
+        missing: List of package names to install
+        target: If True, install to UV_INSTALL_TARGET path, otherwise to Python environment
+
+    Raises:
+        RuntimeError: If UV installation fails
+    """
+    uv_cli = which_uv()
+    if not uv_cli:
+        msg = "UV package manager not found and could not be installed"
+        raise RuntimeError(msg)
+
+    cmd = [str(uv_cli), "pip", "install"]
+    if target:
+        cmd.extend(["--target", str(UV_INSTALL_TARGET)])
+    else:
+        cmd.extend(["--python", sys.executable])
+    cmd.extend(missing)
+
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    if result.stdout:
+        logging.debug(f"UV install output: {result.stdout}")
+
+
+def _import_modules(modules: list[str]) -> None:
+    """
+    Import modules, raising clear errors if imports fail.
+
+    Args:
+        modules: List of module names to import
+
+    Raises:
+        RuntimeError: If any module fails to import
+    """
+    for mod in modules:
+        try:
+            importlib.import_module(mod)
+        except ImportError as e:
+            msg = f"Failed to import {mod} after installation: {e}"
+            raise RuntimeError(msg)
+
+
+def needs(mods: list[str], target: bool = False) -> Callable:
+    """
+    Decorator to auto-install missing dependencies using uv.
+
+    Args:
+        mods: List of module names to ensure are installed
+        target: If True, install to UV_INSTALL_TARGET path, otherwise to Python environment
+
+    Returns:
+        Callable: Decorated function that ensures dependencies are installed
+
+    Raises:
+        RuntimeError: If UV is not available or installation fails
+    """
 
     def decorator(f: Callable) -> Callable:
         @wraps(f)
         def wrapper(*args, **kwargs):
             missing = [m for m in mods if not importlib.util.find_spec(m)]
             if missing:
-                uv_cli = which_uv()
-                if uv_cli:
-                    print(f"Installing {', '.join(missing)} via {uv_cli}")
-                    subprocess.run(
-                        [
-                            str(uv_cli),
-                            "pip",
-                            "install",
-                            "--python",
-                            sys.executable,
-                            # "--target",
-                            # str(UV_INSTALL_TARGET),
-                            *missing,
-                        ],
-                        check=True,
-                    )
-                # Force import newly installed packages
-                for mod in missing:
-                    importlib.import_module(mod)
+                try:
+                    _install_with_uv(missing, target)
+                    _import_modules(missing)
+                except subprocess.CalledProcessError as e:
+                    msg = f"UV installation failed: {e.stderr}"
+                    raise RuntimeError(msg)
+                except Exception as e:
+                    msg = f"Unexpected error during installation: {e!s}"
+                    raise RuntimeError(msg)
             return f(*args, **kwargs)
 
         return wrapper
@@ -591,11 +657,12 @@ def needs(mods: List[str], needs_target: bool = True) -> Callable:
     return decorator
 
 
-@needs(["fire", "pydantic"], needs_target=False)
+@needs(["fire", "pydantic"], target=False)
 def main():
     import fire
 
-    print(fire)
+    logging.info(repr(fire))
+    return fire
 
 
 if __name__ == "__main__":
