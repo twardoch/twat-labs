@@ -82,8 +82,10 @@ def get_site_packages_path() -> Path:
     return _get_fontlab_site_packages() or Path(site.getusersitepackages())
 
 
-# Constant for the UV package installation target.
-# FIXME: Update UV_INSTALL_TARGET as needed for environments other than FontLab.
+####################################
+## INSTALLATION TARGET CONFIG
+####################################
+# Configurable via UV_INSTALL_TARGET environment variable
 UV_INSTALL_TARGET = Path(
     os.environ.get(
         "UV_INSTALL_TARGET",
@@ -376,18 +378,43 @@ UV package manager lifecycle management:
 
 
 ####################################
-## INSTALLATION TARGET CONFIG
+## UV MANAGEMENT
 ####################################
-# Configurable via UV_INSTALL_TARGET environment variable
-UV_INSTALL_TARGET = Path(
-    os.environ.get(
-        "UV_INSTALL_TARGET",
-        str(
-            Path.home()
-            / "Library/Application Support/FontLab/FontLab 8/python/3.11/site-packages"
-        ),
-    )
-)
+@lru_cache(maxsize=20)
+def which_uv() -> Path | None:
+    """
+    Locate the uv executable in the system path.
+
+    Returns:
+        Path | None: Path to uv executable if found, None otherwise
+    """
+    try:
+        uv_cli = which("uv")
+        if uv_cli:
+            return uv_cli
+    except Exception as e:
+        logging.warning(f"Error finding uv: {str(e)}")
+        return None
+
+    # If uv is not found, try to install it using pip
+    pip_cli = which_pip()
+    if pip_cli:
+        try:
+            subprocess.run(
+                [str(pip_cli), "install", "--user", "uv"],
+                check=True,
+                capture_output=True,
+            )
+            # Try finding uv again after installation
+            uv_cli = which("uv")
+            if uv_cli:
+                return uv_cli
+        except subprocess.CalledProcessError as e:
+            logging.warning(f"Error installing uv: {str(e)}")
+        except Exception as e:
+            logging.warning(f"Unexpected error installing uv: {str(e)}")
+
+    return None
 
 
 ####################################
@@ -427,50 +454,6 @@ def which_pip() -> Path | None:
     except Exception as e:
         logging.warning(f"Error ensuring pip: {str(e)}")
     return None
-
-
-###############################
-## DECORATORS & MAIN FUNCTION
-###############################
-"""
-Application entry points and dependency management decorators:
-- needs(): Auto-install decorator
-- main(): CLI entry point
-"""
-
-
-def needs(mods: List[str]) -> Callable:
-    """Decorator to auto-install missing dependencies using uv."""
-
-    def decorator(f: Callable) -> Callable:
-        @wraps(f)
-        def wrapper(*args, **kwargs):
-            missing = [m for m in mods if not importlib.util.find_spec(m)]
-            if missing:
-                uv_cli = which_uv()
-                if uv_cli:
-                    print(f"Installing {', '.join(missing)} via {uv_cli}")
-                    subprocess.run(
-                        [
-                            str(uv_cli),
-                            "pip",
-                            "install",
-                            "--python",
-                            sys.executable,
-                            # "--target",
-                            # str(UV_INSTALL_TARGET),
-                            *missing,
-                        ],
-                        check=True,
-                    )
-                # Force import newly installed packages
-                for mod in missing:
-                    importlib.import_module(mod)
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 ####################################
@@ -564,47 +547,51 @@ def clear_path_cache() -> None:
     build_extended_path.cache_clear()
 
 
-####################################
-## UV MANAGEMENT
-####################################
-@lru_cache(maxsize=20)
-def which_uv() -> Path | None:
-    """
-    Locate the uv executable in the system path.
-
-    Returns:
-        Path | None: Path to uv executable if found, None otherwise
-    """
-    try:
-        uv_cli = which("uv")
-        if uv_cli:
-            return uv_cli
-    except Exception as e:
-        logging.warning(f"Error finding uv: {str(e)}")
-        return None
-
-    # If uv is not found, try to install it using pip
-    pip_cli = which_pip()
-    if pip_cli:
-        try:
-            subprocess.run(
-                [str(pip_cli), "install", "--user", "uv"],
-                check=True,
-                capture_output=True,
-            )
-            # Try finding uv again after installation
-            uv_cli = which("uv")
-            if uv_cli:
-                return uv_cli
-        except subprocess.CalledProcessError as e:
-            logging.warning(f"Error installing uv: {str(e)}")
-        except Exception as e:
-            logging.warning(f"Unexpected error installing uv: {str(e)}")
-
-    return None
+###############################
+## DECORATORS & MAIN FUNCTION
+###############################
+"""
+Application entry points and dependency management decorators:
+- needs(): Auto-install decorator
+- main(): CLI entry point
+"""
 
 
-@needs(["fire", "pydantic"])
+def needs(mods: List[str], needs_target: bool = True) -> Callable:
+    """Decorator to auto-install missing dependencies using uv."""
+
+    def decorator(f: Callable) -> Callable:
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            missing = [m for m in mods if not importlib.util.find_spec(m)]
+            if missing:
+                uv_cli = which_uv()
+                if uv_cli:
+                    print(f"Installing {', '.join(missing)} via {uv_cli}")
+                    subprocess.run(
+                        [
+                            str(uv_cli),
+                            "pip",
+                            "install",
+                            "--python",
+                            sys.executable,
+                            # "--target",
+                            # str(UV_INSTALL_TARGET),
+                            *missing,
+                        ],
+                        check=True,
+                    )
+                # Force import newly installed packages
+                for mod in missing:
+                    importlib.import_module(mod)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+@needs(["fire", "pydantic"], needs_target=False)
 def main():
     import fire
 
