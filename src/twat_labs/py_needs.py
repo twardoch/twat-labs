@@ -4,18 +4,12 @@
 #   "fire",
 # ]
 # ///
-# this_file: needs2.py
+# this_file: py_needs.py
 
 """
 A focused module that provides QtNetwork-based download functionality with
 a synchronous Python interface. Handles HTTP redirects automatically.
 """
-
-## TODO:
-## Mac uv is at https://astral.sh/uv/install.sh but on Windows to install it, users need to do:
-## powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-## and we need to find a Python-compatible way of doing the above
-## The code is also pretty messy, should be refactored for clarity and itemization
 
 import importlib
 import importlib.util
@@ -479,17 +473,6 @@ def needs(mods: List[str]) -> Callable:
     return decorator
 
 
-@needs(["fire", "pydantic"])
-def main():
-    import fire
-
-    print(fire)
-
-
-if __name__ == "__main__":
-    main()
-
-
 ####################################
 ## EXECUTABLE SECURITY
 ####################################
@@ -579,3 +562,54 @@ def build_extended_path() -> str:
 def clear_path_cache() -> None:
     """Clear the cached PATH. Call this if environment variables change."""
     build_extended_path.cache_clear()
+
+
+####################################
+## UV MANAGEMENT
+####################################
+@lru_cache(maxsize=20)
+def which_uv() -> Path | None:
+    """
+    Locate the uv executable in the system path.
+
+    Returns:
+        Path | None: Path to uv executable if found, None otherwise
+    """
+    try:
+        uv_cli = which("uv")
+        if uv_cli:
+            return uv_cli
+    except Exception as e:
+        logging.warning(f"Error finding uv: {str(e)}")
+        return None
+
+    # If uv is not found, try to install it using pip
+    pip_cli = which_pip()
+    if pip_cli:
+        try:
+            subprocess.run(
+                [str(pip_cli), "install", "--user", "uv"],
+                check=True,
+                capture_output=True,
+            )
+            # Try finding uv again after installation
+            uv_cli = which("uv")
+            if uv_cli:
+                return uv_cli
+        except subprocess.CalledProcessError as e:
+            logging.warning(f"Error installing uv: {str(e)}")
+        except Exception as e:
+            logging.warning(f"Unexpected error installing uv: {str(e)}")
+
+    return None
+
+
+@needs(["fire", "pydantic"])
+def main():
+    import fire
+
+    print(fire)
+
+
+if __name__ == "__main__":
+    main()
