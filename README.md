@@ -50,4 +50,5 @@ hatch run format
 
 ## License
 
-MIT License 
+MIT License  
+.
