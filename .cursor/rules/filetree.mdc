@@ -8,7 +8,7 @@ globs:
 │   └── [ 224]  rules
 │       ├── [ 821]  0project.mdc
 │       ├── [ 516]  cleanup.mdc
-│       ├── [ 920]  filetree.mdc
+│       ├── [ 950]  filetree.mdc
 │       └── [2.0K]  quality.mdc
 ├── [  96]  .github
 │   └── [ 128]  workflows
@@ -20,6 +20,7 @@ globs:
 ├── [1.0K]  LICENSE
 ├── [3.5K]  LOG.md
 ├── [ 753]  README.md
+├── [ 34K]  REPO_CONTENT.txt
 ├── [   7]  VERSION.txt
 ├── [ 13K]  cleanup.py
 ├── [ 160]  dist
@@ -30,4 +31,4 @@ globs:
 └── [ 128]  tests
     └── [ 151]  test_twat_labs.py
 
-10 directories, 17 files
+10 directories, 18 files
