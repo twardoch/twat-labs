@@ -1,1 +1,1 @@
-Auto-commit: Save local changes
+Fix VERSION.txt to contain proper version number
