@@ -1,1 +1,4 @@
-Fix VERSION.txt to contain proper version number
+Merge branch 'main' of https://github.com/twardoch/twat-fs
+
+# Conflicts:
+#	VERSION.txt
