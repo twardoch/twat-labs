@@ -69,7 +69,7 @@ IGNORE_PATTERNS = [
     "build",
     "*.egg-info",
 ]
-REQUIRED_FILES = ["LOG.md", ".cursor/rules/0project.mdc", "TODO.md"]
+REQUIRED_FILES = ["CHANGELOG.md", ".cursor/rules/0project.mdc", "TODO.md"]
 LOG_FILE = Path("CLEANUP.txt")
 
 # Ensure we're working from the script's directory
@@ -338,7 +338,7 @@ def repomix(
     """
     try:
         # Build command
-        cmd = ["repomix"]
+        cmd = ["npx", "repomix"]
         if compress:
             cmd.append("--compress")
         if remove_empty_lines:
