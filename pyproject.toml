@@ -41,6 +41,7 @@ classifiers = [
 # -------------------
 # External packages required for the project to function
 dependencies = [
+    "fire>=0.6.0",   # CLI framework
     "twat>=1.8.1", # Main twat package
 
 ]
@@ -58,6 +59,12 @@ email = "adam+github@twardoch.com"
 Documentation = "https://github.com/twardoch/twat-labs#readme"
 Issues = "https://github.com/twardoch/twat-labs/issues"
 Source = "https://github.com/twardoch/twat-labs"
+
+[project.scripts]
+twat-labs             = "twat_labs.__main__:main"
+twat-labs-version     = "twat_labs.__main__:cmd_version"
+twat-labs-info        = "twat_labs.__main__:cmd_info"
+twat-labs-experiments = "twat_labs.__main__:cmd_experiments"
 
 # Twat Plugin Registration
 # -----------------------
