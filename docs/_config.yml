@@ -1,0 +1,17 @@
+# this_file: docs/_config.yml
+title: twat-labs
+description: Experimental sandbox plugin for the twat ecosystem
+theme: jekyll-theme-minimal
+remote_theme: pages-themes/minimal@v0.2.0
+
+url: "https://twardoch.github.io"
+baseurl: "/twat-labs"
+
+author:
+  name: Adam Twardoch
+
+markdown: kramdown
+highlighter: rouge
+
+plugins:
+  - jekyll-seo-tag

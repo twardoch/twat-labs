@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.9] - 2026-06-29
+
+### Added
+- `src/twat_labs/py.typed` PEP 561 marker — downstream mypy users now get typed
+  imports automatically.
+- `docs/` Jekyll site (`index.md` + `_config.yml`) documenting the CLI, Python
+  API, plugin role, and how to add experiments.
+
+### Changed
+- `src/twat_labs/__init__.py`: expanded module docstring explaining the package's
+  role in the twat ecosystem and its public API surface.
+- `pyproject.toml`: added `ignore_missing_imports = true` and a `fire` module
+  override to `[tool.mypy]` — `mypy` now exits clean with zero errors.
+
+
+
 ### Added
 - Initial project setup by Jules, the AI assistant.
 - Created `PLAN.md` for project planning.
